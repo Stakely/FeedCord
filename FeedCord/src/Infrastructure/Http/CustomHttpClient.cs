@@ -110,32 +110,43 @@ namespace FeedCord.Infrastructure.Http
             var baseUrl = uri.GetLeftPart(UriPartial.Authority);
 
             //USER MIMICK
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.UserAgent.ParseAdd(USER_MIMICK);
-
             try
             {
-                await _throttle.WaitAsync();
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.UserAgent.ParseAdd(USER_MIMICK);
 
-                var response = await _innerClient.SendAsync(request);
-                if (response.IsSuccessStatusCode)
+                await _throttle.WaitAsync();
+                try
                 {
-                    _userAgentCache.AddOrUpdate(url, USER_MIMICK, (_, _) => USER_MIMICK);
+                    var response = await _innerClient.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        _userAgentCache.AddOrUpdate(url, USER_MIMICK, (_, _) => USER_MIMICK);
+                        return response;
+                    }
+                }
+                finally
+                {
                     _throttle.Release();
-                    return response;
                 }
 
                 //GOOGLE FEED FETCHER
                 request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.UserAgent.ParseAdd(GOOGLE_FEED_FETCHER);
-                await _throttle.WaitAsync();
-                response = await _innerClient.SendAsync(request);
 
-                if (response.IsSuccessStatusCode)
+                await _throttle.WaitAsync();
+                try
                 {
-                    _userAgentCache.AddOrUpdate(url, GOOGLE_FEED_FETCHER, (_, _) => GOOGLE_FEED_FETCHER);
+                    var response = await _innerClient.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        _userAgentCache.AddOrUpdate(url, GOOGLE_FEED_FETCHER, (_, _) => GOOGLE_FEED_FETCHER);
+                        return response;
+                    }
+                }
+                finally
+                {
                     _throttle.Release();
-                    return response;
                 }
 
                 //USERAGENT SCRAPE
@@ -149,13 +160,20 @@ namespace FeedCord.Infrastructure.Http
                         request = new HttpRequestMessage(HttpMethod.Get, url);
                         request.Headers.UserAgent.ParseAdd(userAgent);
                         request.Headers.Add("Accept", "*/*");
+
                         await _throttle.WaitAsync();
-                        response = await _innerClient.SendAsync(request);
-                        if (response.IsSuccessStatusCode)
+                        try
                         {
-                            _userAgentCache.AddOrUpdate(url, userAgent, (_, _) => userAgent);
+                            var response = await _innerClient.SendAsync(request);
+                            if (response.IsSuccessStatusCode)
+                            {
+                                _userAgentCache.AddOrUpdate(url, userAgent, (_, _) => userAgent);
+                                return response;
+                            }
+                        }
+                        finally
+                        {
                             _throttle.Release();
-                            return response;
                         }
                     }
                 }
@@ -164,10 +182,7 @@ namespace FeedCord.Infrastructure.Http
             {
                 _logger.LogError("Failed to fetch RSS Feed after fallback attempts: {Url} - {E}", url, e);
             }
-            finally
-            {
-                _throttle.Release();
-            }
+
             return oldResponse;
         }
 
