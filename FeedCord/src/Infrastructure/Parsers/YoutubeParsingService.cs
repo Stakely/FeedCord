@@ -53,33 +53,35 @@ namespace FeedCord.Infrastructure.Parsers
                 var response = await _httpClient.GetAsyncWithFallback(xmlUrl);
 
                 if (response is null) return null;
-                
-                response.EnsureSuccessStatusCode();
 
-                var xmlContent = await response.Content.ReadAsStringAsync();
-
-                var xdoc = XDocument.Parse(xmlContent);
-                if (xdoc.Root == null) return null;
-
-                XNamespace atomNs = "http://www.w3.org/2005/Atom";
-                XNamespace mediaNs = "http://search.yahoo.com/mrss/";
-
-                var channelTitle = xdoc.Root.Element(atomNs + "title")?.Value ?? string.Empty;
-                var videoEntry = xdoc.Root.Element(atomNs + "entry");
-
-                if (videoEntry is null)
+                using (response)
                 {
-                    return null;
+                    response.EnsureSuccessStatusCode();
+
+                    var xmlContent = await response.Content.ReadAsStringAsync();
+
+                    var xdoc = XDocument.Parse(xmlContent);
+                    if (xdoc.Root == null) return null;
+
+                    XNamespace atomNs = "http://www.w3.org/2005/Atom";
+                    XNamespace mediaNs = "http://search.yahoo.com/mrss/";
+
+                    var channelTitle = xdoc.Root.Element(atomNs + "title")?.Value ?? string.Empty;
+                    var videoEntry = xdoc.Root.Element(atomNs + "entry");
+
+                    if (videoEntry is null)
+                    {
+                        return null;
+                    }
+
+                    var videoTitle = videoEntry.Element(atomNs + "title")?.Value ?? string.Empty;
+                    var videoLink = videoEntry.Element(atomNs + "link")?.Attribute("href")?.Value ?? string.Empty;
+                    var videoThumbnail = videoEntry.Element(mediaNs + "group")?.Element(mediaNs + "thumbnail")?.Attribute("url")?.Value ?? string.Empty;
+                    var videoPublished = DateTime.Parse(videoEntry.Element(atomNs + "published")?.Value ?? DateTime.MinValue.ToString(CultureInfo.CurrentCulture));
+                    var videoAuthor = videoEntry.Element(atomNs + "author")?.Element(atomNs + "name")?.Value ?? string.Empty;
+                    
+                    return new Post(videoTitle, videoThumbnail, string.Empty, videoLink, channelTitle, videoPublished, videoAuthor, Array.Empty<string>());
                 }
-
-                var videoTitle = videoEntry.Element(atomNs + "title")?.Value ?? string.Empty;
-                var videoLink = videoEntry.Element(atomNs + "link")?.Attribute("href")?.Value ?? string.Empty;
-                var videoThumbnail = videoEntry.Element(mediaNs + "group")?.Element(mediaNs + "thumbnail")?.Attribute("url")?.Value ?? string.Empty;
-                var videoPublished = DateTime.Parse(videoEntry.Element(atomNs + "published")?.Value ?? DateTime.MinValue.ToString(CultureInfo.CurrentCulture));
-                var videoAuthor = videoEntry.Element(atomNs + "author")?.Element(atomNs + "name")?.Value ?? string.Empty;
-                
-
-                return new Post(videoTitle, videoThumbnail, string.Empty, videoLink, channelTitle, videoPublished, videoAuthor, Array.Empty<string>());
             }
             catch (Exception ex)
             {

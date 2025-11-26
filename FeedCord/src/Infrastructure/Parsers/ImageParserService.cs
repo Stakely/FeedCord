@@ -112,19 +112,22 @@ namespace FeedCord.Infrastructure.Parsers
                 var response = await _httpClient.GetAsyncWithFallback(pageUrl);
 
                 if (response is null) return string.Empty;
-                
-                response.EnsureSuccessStatusCode();
-                var htmlContent = await response.Content.ReadAsStringAsync();
 
-                // Existing logic
-                var doc = new HtmlDocument();
-                doc.LoadHtml(htmlContent);
-
-                var imageUrl = ExtractImageFromDocument(doc);
-                if (!string.IsNullOrEmpty(imageUrl))
+                using (response)
                 {
-                    imageUrl = MakeAbsoluteUrl(pageUrl, imageUrl);
-                    return imageUrl;
+                    response.EnsureSuccessStatusCode();
+                    var htmlContent = await response.Content.ReadAsStringAsync();
+
+                    // Existing logic
+                    var doc = new HtmlDocument();
+                    doc.LoadHtml(htmlContent);
+
+                    var imageUrl = ExtractImageFromDocument(doc);
+                    if (!string.IsNullOrEmpty(imageUrl))
+                    {
+                        imageUrl = MakeAbsoluteUrl(pageUrl, imageUrl);
+                        return imageUrl;
+                    }
                 }
             }
             catch (Exception ex)

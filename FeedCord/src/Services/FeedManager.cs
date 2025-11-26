@@ -164,11 +164,11 @@ namespace FeedCord.Services
                     return false;
                 }
 
-                _logAggregator.AddUrlResponse(url, (int)response.StatusCode);
-
-                response.EnsureSuccessStatusCode();
-
-                return true;
+                using (response)
+                {
+                    _logAggregator.AddUrlResponse(url, (int)response.StatusCode);
+                    return response.IsSuccessStatusCode;
+                }
             }
             catch (HttpRequestException ex)
             {
@@ -293,11 +293,14 @@ namespace FeedCord.Services
                     throw new Exception();
                 }
 
-                response!.EnsureSuccessStatusCode();
+                using (response)
+                {
+                    response.EnsureSuccessStatusCode();
 
-                var xmlContent = await GetResponseContentAsync(response);
+                    var xmlContent = await GetResponseContentAsync(response);
 
-                post = await _rssParsingService.ParseYoutubeFeedAsync(xmlContent);
+                    post = await _rssParsingService.ParseYoutubeFeedAsync(xmlContent);
+                }
 
                 return post == null ? new List<Post?>() : new List<Post?> { post };
 
@@ -330,11 +333,14 @@ namespace FeedCord.Services
                     throw new Exception();
                 }
 
-                response.EnsureSuccessStatusCode();
+                using (response)
+                {
+                    response.EnsureSuccessStatusCode();
 
-                var xmlContent = await GetResponseContentAsync(response);
+                    var xmlContent = await GetResponseContentAsync(response);
 
-                return await _rssParsingService.ParseRssFeedAsync(xmlContent, trim);
+                    return await _rssParsingService.ParseRssFeedAsync(xmlContent, trim);
+                }
 
             }
             catch (HttpRequestException ex)

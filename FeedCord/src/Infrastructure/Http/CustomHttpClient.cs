@@ -71,36 +71,62 @@ namespace FeedCord.Infrastructure.Http
 
         public async Task PostAsyncWithFallback(string url, StringContent forumChannelContent, StringContent textChannelContent, bool isForum)
         {
+            HttpResponseMessage? response = null;
             try
             {
                 await _throttle.WaitAsync();
 
-                var response = await _innerClient.PostAsync(url, isForum ? forumChannelContent : textChannelContent);
-                
-                _throttle.Release();
-
-                if (response.StatusCode != HttpStatusCode.NoContent)
-                {
-                    await _throttle.WaitAsync();
-
-                    _logger.LogError("Response Error: {ResponseError}", response.Content.ReadAsStringAsync().Result);
-
-                    response = await _innerClient.PostAsync(url, !isForum ? forumChannelContent : textChannelContent);
-
-                    if (response.StatusCode == HttpStatusCode.NoContent)
-                    {
-                        _logger.LogWarning(
-                            "Successfully posted to Discord Channel after switching channel type - Change Forum Property in Config!!");
-                    }
-                    else
-                    {
-                        _logger.LogError("Failed to post to Discord Channel after fallback attempts");
-                    }
-                }
+                response = await _innerClient.PostAsync(url, isForum ? forumChannelContent : textChannelContent);
             }
             finally
             {
                 _throttle.Release();
+            }
+
+            if (response.StatusCode == HttpStatusCode.NoContent)
+            {
+                response.Dispose();
+                return;
+            }
+
+            var responseBody = response.Content != null
+                ? await response.Content.ReadAsStringAsync()
+                : string.Empty;
+
+            _logger.LogError("Response Error: {ResponseError}", responseBody);
+            response.Dispose();
+
+            HttpResponseMessage? fallbackResponse = null;
+
+            try
+            {
+                await _throttle.WaitAsync();
+                fallbackResponse = await _innerClient.PostAsync(
+                    url,
+                    !isForum ? forumChannelContent : textChannelContent);
+            }
+            finally
+            {
+                _throttle.Release();
+            }
+
+            if (fallbackResponse == null)
+            {
+                _logger.LogError("Failed to post to Discord Channel after fallback attempts");
+                return;
+            }
+
+            using (fallbackResponse)
+            {
+                if (fallbackResponse.StatusCode == HttpStatusCode.NoContent)
+                {
+                    _logger.LogWarning(
+                        "Successfully posted to Discord Channel after switching channel type - Change Forum Property in Config!!");
+                }
+                else
+                {
+                    _logger.LogError("Failed to post to Discord Channel after fallback attempts");
+                }
             }
         }
 
